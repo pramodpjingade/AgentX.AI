@@ -222,33 +222,21 @@ class ResponseComposer:
 
         elif category == 'coding':
             return {
-                "summary": f"Full-stack software package generated for '{title}'. Complete with architecture specifications and production code.",
-                "stack": ["TypeScript", "React / Next.js", "Tailwind CSS", "FastAPI"],
-                "project_overview": clean_text[:400] + "...",
+                "summary": f"Code implementation generated for '{title}'.",
+                "content": clean_text,
+                "project_overview": clean_text[:400] + ("..." if len(clean_text) > 400 else ""),
                 "files": [
                     {
-                        "filename": "components/Portfolio.tsx",
-                        "language": "typescript",
-                        "code": "// Generated Portfolio Component\nimport React from 'react';\n\nexport const Portfolio = () => {\n  return (\n    <div className=\"min-h-screen bg-zinc-950 text-white p-8\">\n      <h1 className=\"text-3xl font-bold tracking-tight\">AgentX Portfolio Project</h1>\n      <p className=\"text-zinc-400 mt-2\">Engineered autonomously by AgentX AI OS.</p>\n    </div>\n  );\n};\nexport default Portfolio;"
-                    },
-                    {
-                        "filename": "styles/globals.css",
-                        "language": "css",
-                        "code": "@import 'tailwindcss';\nbody { background-color: #09090b; color: #ffffff; font-family: sans-serif; }"
-                    },
-                    {
-                        "filename": "README.md",
-                        "language": "markdown",
-                        "code": "# Portfolio Project\n\nGenerated automatically via AgentX AI Operating System.\n\n## Quick Start\n```bash\nnpm install\nnpm run dev\n```"
+                        "filename": "solution.code",
+                        "language": "text",
+                        "code": clean_text
                     }
                 ],
                 "deployment_guide": [
-                    "1. Clone or extract the generated project bundle.",
-                    "2. Run 'npm install' to resolve dependencies.",
-                    "3. Run 'npm run dev' to launch local preview.",
-                    "4. Push to GitHub and connect to Vercel for instant deployment."
+                    "1. Review generated implementation above.",
+                    "2. Run and test according to your local environment specifications."
                 ],
-                "actions": ["Download Project ZIP", "Deploy to Vercel", "Copy Generated Code"]
+                "actions": ["Copy Generated Code", "Save Mission"]
             }
 
         elif category == 'research':

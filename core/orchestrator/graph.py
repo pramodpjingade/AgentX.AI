@@ -129,43 +129,34 @@ async def router_node(state: AgentXState) -> Dict[str, Any]:
         logger.info("Orchestrator Node [RouterAgent]: All subtasks completed. Routing to CONSOLIDATION.")
         return {"next_agent": "master_agent_consolidator"}
 
-    # Invoke Router / Supervisor Agent to make dynamic routing choices
     from agents.registry import AgentRegistry
     registry = AgentRegistry()
-    
+    available_agents = registry.list_agents()
+
+    current_task = tasks[index]
+    assigned_agent = current_task.get("assigned_agent", "research_agent")
+
+    # If supervisor specifically recommended an agent for this task
     try:
-        router_agent = registry.instantiate_agent("router_agent")
         supervisor = registry.instantiate_agent("supervisor_agent")
-        
-        # Prepare execution history for supervisor
-        history = []
-        for i, t in enumerate(tasks):
-            history.append({
-                "task_index": i,
-                "assigned_agent": t.get("assigned_agent"),
-                "status": t.get("status"),
-                "output": str(t.get("output_data", ""))[:100]
-            })
-            
+        history = [
+            {"task_index": i, "assigned_agent": t.get("assigned_agent"), "status": t.get("status")}
+            for i, t in enumerate(tasks)
+        ]
         decision = await supervisor.execute({
             "goal": state.get("goal_title", ""),
             "task_history": history
         })
-        next_agent = decision.get("next_agent", "complete")
-        logger.info(f"Orchestrator Node [RouterAgent]: Supervisor choice: {next_agent}")
+        recommended = decision.get("next_agent")
+        if recommended and recommended != "complete" and recommended in available_agents:
+            assigned_agent = recommended
     except Exception as e:
-        logger.error(f"Orchestrator Node [RouterAgent]: Failed to run supervisor routing: {e}. Falling back to DAG default.")
-        next_agent = tasks[index].get("assigned_agent", "master_agent")
+        logger.debug(f"RouterNode supervisor check note: {e}")
 
-    if next_agent == "complete":
-        logger.info("Orchestrator Node [RouterAgent]: Supervisor marked completion. Routing to CONSOLIDATION.")
-        return {"next_agent": "master_agent_consolidator"}
-        
-    current_task = tasks[index]
-    # Fallback to current task assigned_agent if supervisor output is invalid or not registered
-    assigned_agent = next_agent if next_agent in registry.list_agents() else current_task.get("assigned_agent", "master_agent")
-    logger.info(f"Orchestrator Node [RouterAgent]: Task {index+1}/{len(tasks)} routed to '{assigned_agent}' by Router/Supervisor")
-    
+    if assigned_agent not in available_agents:
+        assigned_agent = "research_agent"
+
+    logger.info(f"Orchestrator Node [RouterAgent]: Task {index+1}/{len(tasks)} routed to '{assigned_agent}'")
     return {"next_agent": assigned_agent}
 
 async def agent_execution_node(state: AgentXState) -> Dict[str, Any]:
@@ -374,11 +365,16 @@ async def consolidation_node(state: AgentXState) -> Dict[str, Any]:
     engine = WorkflowEngine()
     engine_status = await engine.get_status(state["goal_id"])
     
+    tasks = state.get("tasks", [])
+    any_failed = any(t.get("status") == "failed" for t in tasks)
+    any_pending = any(t.get("status") == "pending" for t in tasks)
+    
     if engine_status == "cancelled":
         final_status = "CANCELLED"
+    elif any_failed or any_pending:
+        final_status = "FAILED"
     else:
-        any_failed = any(t.get("status") == "failed" for t in state.get("tasks", []))
-        final_status = "FAILED" if any_failed else "COMPLETED"
+        final_status = "COMPLETED"
 
     # Compose structured Mission Result using ResponseComposer
     composed_result = ResponseComposer.compose_mission_result(

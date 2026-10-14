@@ -40,16 +40,9 @@ async def stream_chat_message(
     user_id = str(current_user.id)
     logger.info(f"CHAT_TRACE_START conversation_id={request.conversation_id} user_id={user_id} message='{request.message[:40]}' endpoint=/chat/stream route=stream_chat_message")
     
-    response = await controller.process_chat_message(request, user_id=user_id)
-
-    logger.info(f"CHAT_TRACE_RESPONSE conversation_id={response.conversation_id} message_id={response.message_id} status={response.status}")
+    generator = await controller.stream_chat_message(request, user_id=user_id)
     return StreamingResponse(
-        ChatStreamer.generate_chat_stream(
-            conversation_id=response.conversation_id,
-            message_id=response.message_id,
-            final_content=response.content,
-            user_message=request.message
-        ),
+        generator,
         media_type="text/event-stream"
     )
 

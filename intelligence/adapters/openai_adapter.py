@@ -15,7 +15,8 @@ class OpenAIAdapter(BaseProviderAdapter):
         self.api_key = os.getenv("OPENAI_API_KEY")
 
     def is_configured(self) -> bool:
-        return bool(self.api_key and "your-" not in self.api_key)
+        key = self.api_key or os.getenv("OPENAI_API_KEY")
+        return bool(key and "your-" not in key and len(key.strip()) > 5)
 
     async def execute(
         self,
@@ -23,23 +24,34 @@ class OpenAIAdapter(BaseProviderAdapter):
         system_instruction: str = "You are a helpful assistant.",
         model_name: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: int = 1000
+        max_tokens: int = 1500
     ) -> ModelResponse:
         start_time = time.time()
-        model = model_name or "gpt-4o-mini"
+        key = os.getenv("OPENAI_API_KEY") or self.api_key
+        model = model_name or os.getenv("DEFAULT_OPENAI_MODEL", "gpt-4o-mini")
 
         if not self.is_configured():
-            from intelligence.adapters.mock_adapter import MockAdapter
-            logger.warning("OpenAIAdapter: Key not configured, delegating to MockAdapter.")
-            return await MockAdapter().execute(prompt, system_instruction, model, temperature, max_tokens)
+            return ModelResponse(
+                response_text=(
+                    "⚠️ **OpenAI API Key Not Configured**\n\n"
+                    "Please provide a valid `OPENAI_API_KEY` in your `.env` file to enable OpenAI models."
+                ),
+                provider="openai",
+                model=model,
+                confidence_score=0.0,
+                finish_reason="error",
+                safety_flags=["MISSING_CREDENTIALS: OPENAI_API_KEY"]
+            )
 
         try:
             from langchain_openai import ChatOpenAI
             client = ChatOpenAI(
                 model=model,
-                openai_api_key=self.api_key,
+                openai_api_key=key,
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                request_timeout=45.0,
+                max_retries=2
             )
             messages = [("system", system_instruction), ("human", prompt)]
             res = await client.ainvoke(messages)
@@ -65,7 +77,49 @@ class OpenAIAdapter(BaseProviderAdapter):
             )
         except Exception as e:
             logger.error(f"OpenAIAdapter execution error: {e}")
-            from intelligence.adapters.mock_adapter import MockAdapter
-            mock_res = await MockAdapter().execute(prompt, system_instruction, model, temperature, max_tokens)
-            mock_res.safety_flags.append(f"ProviderError: {e}")
-            return mock_res
+            latency_ms = int((time.time() - start_time) * 1000)
+            return ModelResponse(
+                response_text=f"[Model Provider Error (openai)] {str(e)}",
+                latency_ms=latency_ms,
+                provider="openai",
+                model=model,
+                confidence_score=0.0,
+                finish_reason="error",
+                safety_flags=[f"ProviderError: {e}"]
+            )
+
+    async def stream(
+        self,
+        prompt: str,
+        system_instruction: str = "You are a helpful assistant.",
+        model_name: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1500
+    ):
+        key = os.getenv("OPENAI_API_KEY") or self.api_key
+        model = model_name or os.getenv("DEFAULT_OPENAI_MODEL", "gpt-4o-mini")
+
+        if not self.is_configured():
+            yield (
+                "**[AgentX Configuration Required]**\n\n"
+                "Please configure a valid `OPENAI_API_KEY` in your `.env` file to enable OpenAI models."
+            )
+            return
+
+        try:
+            from langchain_openai import ChatOpenAI
+            client = ChatOpenAI(
+                model=model,
+                openai_api_key=key,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                request_timeout=45.0,
+                max_retries=2
+            )
+            messages = [("system", system_instruction), ("human", prompt)]
+            async for chunk in client.astream(messages):
+                if chunk.content:
+                    yield str(chunk.content)
+        except Exception as e:
+            logger.error(f"OpenAIAdapter streaming error: {e}")
+            yield f"[Model Provider Error (openai)] {str(e)}"

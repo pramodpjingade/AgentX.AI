@@ -29,3 +29,25 @@ class BaseProviderAdapter(ABC):
         Executes model prompt request and returns a normalized ModelResponse object.
         """
         pass
+
+    async def stream(
+        self,
+        prompt: str,
+        system_instruction: str = "You are a helpful assistant.",
+        model_name: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1000
+    ):
+        """
+        Streams generated text tokens as an asynchronous generator.
+        Subclasses should override with genuine provider streaming.
+        """
+        response = await self.execute(
+            prompt=prompt,
+            system_instruction=system_instruction,
+            model_name=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        if response.response_text:
+            yield response.response_text

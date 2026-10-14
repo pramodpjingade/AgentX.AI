@@ -35,6 +35,18 @@ class WebSearchToolAdapter(BaseTool):
                 for item in results if isinstance(item, dict) and item.get("url")
             ]
 
+            if not results:
+                return ToolResult(
+                    status="no_results",
+                    success=True,
+                    data=[],
+                    metadata={"query": query, "results_count": 0},
+                    latency=latency,
+                    execution_time=execution_time,
+                    citations=[],
+                    logs=[f"Web search executed for '{query}' but no live results were returned."]
+                )
+
             return ToolResult(
                 status="success",
                 success=True,

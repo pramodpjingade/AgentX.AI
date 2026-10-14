@@ -11,22 +11,68 @@ class CodeExecutorTool:
     def __init__(self, timeout_seconds: float = 10.0):
         self.timeout = timeout_seconds
 
+    DANGEROUS_PATTERNS = [
+        "os.system",
+        "subprocess",
+        "shutil.rmtree",
+        "shutil.move",
+        ".env",
+        "agentx.db",
+        "__import__('os').system",
+        "__import__('subprocess')",
+        "eval(",
+        "exec("
+    ]
+
+    def _is_safe(self, code: str) -> tuple[bool, str]:
+        """Validates code for dangerous system operations or secret leakage."""
+        code_lower = code.lower()
+        for pattern in self.DANGEROUS_PATTERNS:
+            if pattern in code_lower:
+                return False, f"Execution Blocked: Unsafe pattern '{pattern}' detected. Arbitrary system operations and secret access are prohibited."
+        return True, ""
+
     def execute_python_code(self, code: str) -> Dict[str, Any]:
-        """Write code to a temporary file and execute it in a subprocess."""
+        """Executes Python code in an isolated subprocess with sanitized environment and timeout."""
         logger.info("CodeExecutorTool: Initiating execution of Python code block...")
-        
-        # Create a temporary file to hold the script
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode="w", encoding="utf-8") as f:
+
+        # 1. Safety audit
+        is_safe, reason = self._is_safe(code)
+        if not is_safe:
+            logger.warning(f"CodeExecutorTool: {reason}")
+            return {
+                "success": False,
+                "stdout": "",
+                "stderr": reason,
+                "returncode": -1,
+                "sandboxed": True
+            }
+
+        # 2. Isolated temporary directory and script file
+        temp_dir = tempfile.mkdtemp(prefix="agentx_sandbox_")
+        temp_file_path = os.path.join(temp_dir, "script.py")
+
+        with open(temp_file_path, "w", encoding="utf-8") as f:
             f.write(code)
-            temp_file_path = f.name
-            
+
+        # 3. Clean environment: strip all API keys and database credentials
+        safe_env = {
+            "PATH": os.environ.get("PATH", ""),
+            "SYSTEMROOT": os.environ.get("SYSTEMROOT", "C:\\Windows"),
+            "TEMP": temp_dir,
+            "TMP": temp_dir,
+            "PYTHONIOENCODING": "utf-8"
+        }
+
         try:
-            # Run the script using the active python interpreter executable
+            # Run the script in isolated subprocess
             result = subprocess.run(
-                [sys.executable, temp_file_path],
+                [sys.executable, "-I", temp_file_path],  # -I flag isolates from user site-packages/env
                 capture_output=True,
                 text=True,
-                timeout=self.timeout
+                timeout=self.timeout,
+                cwd=temp_dir,
+                env=safe_env
             )
             
             # Prepare result dictionary
@@ -57,8 +103,9 @@ class CodeExecutorTool:
                 "returncode": -1
             }
         finally:
-            # Clean up the temporary script file
             try:
-                os.remove(temp_file_path)
+                import shutil
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir, ignore_errors=True)
             except Exception as e:
-                logger.warning(f"CodeExecutorTool: Failed to remove temp file {temp_file_path}: {e}")
+                logger.warning(f"CodeExecutorTool: Failed to cleanup sandbox temp directory {temp_dir}: {e}")

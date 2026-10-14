@@ -9,7 +9,9 @@ from dotenv import load_dotenv
 
 from database.connection import Base
 
-load_dotenv()
+from pathlib import Path
+_project_root = Path(__file__).resolve().parent.parent
+load_dotenv(dotenv_path=_project_root / ".env")
 
 # Determine database engine type
 DATABASE_URL = os.getenv("DATABASE_URL", "")

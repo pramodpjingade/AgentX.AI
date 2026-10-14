@@ -9,7 +9,9 @@ from api.router import api_router
 from database.connection import engine
 from authentication.rate_limiter import RateLimiter
 
-load_dotenv()
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(dotenv_path=BASE_DIR / ".env")
 
 app = FastAPI(
     title="AgentX Backend Engine",

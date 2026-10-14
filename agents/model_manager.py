@@ -57,10 +57,10 @@ class ModelManager:
         self, 
         prompt: str, 
         system_instruction: str = "You are a helpful assistant.",
-        provider: str = "mock", 
+        provider: str = "auto", 
         model_name: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: int = 1000,
+        max_tokens: int = 1500,
         task_id: Optional[str] = None
     ) -> str:
         """Routes prompt to Phase 5 IntelligenceRouter gateway and returns response text."""
@@ -78,6 +78,28 @@ class ModelManager:
         )
 
         return response_obj.response_text
+
+    async def stream(
+        self,
+        prompt: str,
+        system_instruction: str = "You are a helpful assistant.",
+        provider: str = "auto",
+        model_name: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 1500
+    ):
+        """Streams tokens from Phase 5 IntelligenceRouter gateway."""
+        from intelligence.router import IntelligenceRouter
+        router = IntelligenceRouter()
+        async for token in router.stream(
+            prompt=prompt,
+            system_instruction=system_instruction,
+            provider=provider,
+            model_name=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens
+        ):
+            yield token
 
     async def _log_model_routing(
         self,

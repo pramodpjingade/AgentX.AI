@@ -23,6 +23,15 @@ class ChatController:
             preferences=request.preferences
         )
 
+    async def stream_chat_message(self, request: ChatRequest, user_id: Optional[str] = None):
+        """Streams incoming user chat message directly via Server-Sent Events (SSE)."""
+        return self.service.stream_message(
+            message=request.message,
+            user_id=user_id,
+            conversation_id=request.conversation_id,
+            preferences=request.preferences
+        )
+
     async def get_history(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Lists user conversation threads from DB."""
         return await self.service.list_conversations(user_id=user_id)

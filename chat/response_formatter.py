@@ -6,8 +6,9 @@ from database.models import MissionResult
 class ResponseFormatter:
     """
     Response Formatter for AgentX Chat Layer.
-    Transforms raw MissionResult and internal multi-agent outputs into clean, readable
-    assistant markdown text without exposing raw logs, internal agent names, or stacktraces to users.
+    Transforms raw MissionResult and multi-agent outputs into clean, readable
+    assistant markdown text without exposing raw logs, internal agent names,
+    task assignment dictionaries, or stacktraces to users.
     """
 
     @classmethod
@@ -16,74 +17,89 @@ class ResponseFormatter:
         if not text:
             return ""
 
-        output = str(text)
+        output = str(text).strip()
 
-        # 1. Remove debug / system header banners and emojis
+        # 1. Remove debug / system header banners
         output = re.sub(r'(?i).*?AgentX AI OS Executive Synthesis.*?\n', '', output)
         output = re.sub(r'(?i)#*\s*Here is your completed mission deliverable:.*?\n', '', output)
         output = re.sub(r'---\s*Agent Result.*?\n', '', output)
+        output = re.sub(r'---\s*Subtask Result.*?\n', '', output)
         output = re.sub(r'\[\d{1,2}:\d{2}:\d{2}.*?\]\s*.*?Agent:.*?\n', '', output)
 
         # 2. Remove raw Python dictionary lines (e.g., {'status': 'success', ...})
         lines = []
         for line in output.split('\n'):
             stripped = line.strip()
-            if stripped.startswith("{'status':") or stripped.startswith('{"status":') or stripped.startswith("{'is_safe':") or stripped.startswith('{"is_safe":'):
+            if (stripped.startswith("{'status':") or stripped.startswith('{"status":') or 
+                stripped.startswith("{'is_safe':") or stripped.startswith('{"is_safe":') or
+                stripped.startswith("{'task_id':") or stripped.startswith('{"task_id":') or
+                stripped.startswith("{'goal_id':") or stripped.startswith('{"goal_id":')):
                 continue
             if stripped.startswith('--- Agent Result') or stripped.startswith('--- Subtask Result'):
                 continue
             lines.append(line)
-        output = '\n'.join(lines)
+        output = '\n'.join(lines).strip()
 
-        # 3. Remove internal agent names if present in system text
-        agent_names_pattern = r'\b(safety_agent|intent_agent|planning_agent|master_agent|router_agent|evaluator_agent|education_agent|travel_agent|coding_agent|research_agent|fact_verification_agent|governance_layer|evaluation_agent)\b'
-        output = re.sub(agent_names_pattern, 'assistant', output, flags=re.IGNORECASE)
-
-        # 4. Clean up raw JSON dumps if they are not code blocks requested by user
-        if output.strip().startswith('{') and output.strip().endswith('}'):
+        # 3. Clean up raw JSON dumps if accidentally produced outside code blocks
+        if output.startswith('{') and output.endswith('}') and not ('\n```' in output):
             try:
                 import json
                 data = json.loads(output)
                 if isinstance(data, dict):
                     if data.get('content'):
                         output = str(data['content'])
+                    elif data.get('result'):
+                        output = str(data['result'])
                     elif data.get('summary'):
                         output = str(data['summary'])
                     elif data.get('deliverable'):
                         deliv = data['deliverable']
                         if isinstance(deliv, dict):
-                            output = deliv.get('content') or deliv.get('summary') or str(deliv)
-                        else:
-                            output = str(deliv)
+                            output = deliv.get('content') or deliv.get('summary') or ""
+                        elif isinstance(deliv, str):
+                            output = deliv
             except Exception:
                 pass
+
+        # 4. Remove internal agent names from free text if present in prompt leakages
+        agent_names_pattern = r'\b(safety_agent|intent_agent|planning_agent|master_agent|router_agent|evaluator_agent|education_agent|travel_agent|coding_agent|research_agent|fact_verification_agent|governance_layer|evaluation_agent)\b'
+        output = re.sub(agent_names_pattern, 'assistant', output, flags=re.IGNORECASE)
 
         return output.strip()
 
     @classmethod
     def format_mission_result(cls, mission_result: Optional[MissionResult], goal_title: str) -> str:
-        """Formats MissionResult into a clean ChatGPT-style response."""
+        """Formats MissionResult into a clean, comprehensive assistant response."""
         if not mission_result:
             return f"I have processed your request for **{goal_title}**."
 
         raw = ""
-        if getattr(mission_result, "markdown_output", None):
-            raw = mission_result.markdown_output
-        elif getattr(mission_result, "summary", None):
-            raw = mission_result.summary
-        else:
+
+        # 1. Check primary markdown_output
+        if getattr(mission_result, "markdown_output", None) and str(mission_result.markdown_output).strip():
+            raw = str(mission_result.markdown_output).strip()
+
+        # 2. Check composed_result
+        if not raw:
             composed = getattr(mission_result, "composed_result", {}) or {}
             if isinstance(composed, dict):
-                deliv = composed.get("deliverable") or composed.get("structured_output")
-                if isinstance(deliv, str):
-                    raw = deliv
-                elif isinstance(deliv, dict):
-                    raw = deliv.get("content") or deliv.get("summary") or str(deliv)
+                if composed.get("markdown_output") and str(composed["markdown_output"]).strip():
+                    raw = str(composed["markdown_output"]).strip()
+                elif composed.get("deliverable"):
+                    deliv = composed["deliverable"]
+                    if isinstance(deliv, dict):
+                        raw = deliv.get("content") or deliv.get("report_body") or deliv.get("summary") or ""
+                    elif isinstance(deliv, str):
+                        raw = deliv
                 elif composed.get("summary"):
                     raw = composed["summary"]
 
-        if not raw:
-            raw = f"Here is the completed deliverable for **{goal_title}**."
+        # 3. Check summary field on model
+        if not raw and getattr(mission_result, "summary", None):
+            raw = str(mission_result.summary).strip()
+
+        if not raw or raw.startswith("{'"):
+            raw = f"Completed operations for **{goal_title}**."
 
         return cls.sanitize_output(raw)
 
@@ -92,8 +108,6 @@ class ResponseFormatter:
         """Formats errors into a polite, user-friendly assistant response."""
         logger.warning(f"ResponseFormatter: Formatting internal error: {error_message}")
         return (
-            "I encountered an unexpected issue while processing your request. "
-            "Our system has recorded this event to ensure continuous performance. "
-            "Please try submitting your question again."
+            f"I encountered an issue processing your request: {error_message}. "
+            "Please verify your configuration and try again."
         )
-

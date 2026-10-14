@@ -42,18 +42,8 @@ class WebSearchTool:
                 "content": summary
             }]
         except Exception as e:
-            logger.error(f"WebSearchTool: DuckDuckGo search error: {e}. Returning mock results.")
+            logger.warning(f"WebSearchTool: DuckDuckGo search error: {e}.")
             
-        # 3. Return Mock search results
-        return [
-            {
-                "title": f"Mock Weather Search result for {query}",
-                "url": "https://example.com/weather",
-                "content": f"The weather for {query} is currently sunny and 22°C. Wind is at 10km/h."
-            },
-            {
-                "title": f"Mock Tech Search result for {query}",
-                "url": "https://example.com/tech",
-                "content": "AgentX is an advanced Autonomous Multi-Agent AI Ecosystem built using Python and Node.js."
-            }
-        ]
+        # 3. Honest reporting: never fabricate search results
+        logger.info(f"WebSearchTool: No live search provider available or query produced no results for '{query}'.")
+        return []

@@ -45,16 +45,20 @@ Generate production-ready code, complete with error handling, proper imports, an
 
         logger.info(f"CodingAgent: Generating code implementation for '{prompt_text[:60]}'...")
 
+        provider = task_input.get("provider") if isinstance(task_input, dict) and task_input.get("provider") else self.model_preference
+
         res = await self.model_manager.generate(
             prompt=prompt_text,
             system_instruction=self.get_system_prompt(),
-            provider=self.model_preference
+            provider=provider
         )
 
+        is_error = "Error" in res or "Configuration Required" in res
+        status = "failed" if is_error else "completed"
         result_payload = {
-            "status": "completed",
+            "status": status,
             "result": res,
-            "code_snippets": [res]
+            "code_snippets": [res] if not is_error else []
         }
 
         if context_obj and hasattr(context_obj, "add_agent_output"):
