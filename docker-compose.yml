@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: agentx_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-agentx_admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-agentx_secret_pass}
+      POSTGRES_DB: ${DB_NAME:-agentx_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - agentx_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: agentx_redis
+    restart: always
+    command: redis-server --pubsub-event-value-in-event yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - agentx_net
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  agentx_net:
+    driver: bridge

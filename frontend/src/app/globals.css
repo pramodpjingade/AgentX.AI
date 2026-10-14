@@ -1,0 +1,82 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+
+:root {
+  --background: #000000;
+  --foreground: #f3f4f6;
+  --card: #0f172a;
+  --card-foreground: #f3f4f6;
+  --popover: #0f172a;
+  --popover-foreground: #f3f4f6;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --secondary: #1e293b;
+  --secondary-foreground: #f3f4f6;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --accent: #1e293b;
+  --accent-foreground: #f3f4f6;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #1e293b;
+  --input: #1e293b;
+  --ring: #6366f1;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui;
+  overflow-x: hidden;
+}
+
+/* Custom interactive cyber glow effects */
+.glow-text {
+  text-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+}
+
+.glow-border {
+  box-shadow: 0 0 15px -3px rgba(99, 102, 241, 0.3);
+}
+
+/* Custom keyframes & animated grid backgrounds */
+.animated-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, #000 70%, transparent 100%);
+}
+
+.aurora-bg {
+  background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+              radial-gradient(circle at 90% 80%, rgba(147, 51, 234, 0.15) 0%, transparent 50%);
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Premium Custom Styled AgentX Brand Typography */
+.agentx-brand {
+  font-family: var(--font-geist-sans), sans-serif;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  text-shadow: 0 0 25px rgba(99, 102, 241, 0.35);
+}
+
